@@ -27,3 +27,13 @@ urllib3==1.26.6
 google-auth
 google-auth-oauthlib
 
+
+gunicorn
+psycopg2-binary
+dj-database-url
+whitenoise
+python-dotenv
+
+
+django-cors-headers
+

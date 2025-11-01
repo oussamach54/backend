@@ -2,12 +2,19 @@
 import os
 from pathlib import Path
 from datetime import timedelta
+
 from dotenv import load_dotenv
+import dj_database_url
 
+# ---------------------------------------------------------------------
+# BASE & ENV
+# ---------------------------------------------------------------------
 BASE_DIR = Path(__file__).resolve().parent.parent
+load_dotenv(BASE_DIR / ".env")  # load .env if present (dev)
 
-# load .env
-load_dotenv(BASE_DIR / ".env")
+def _split_env_list(value: str, default: str = ""):
+    raw = (value or default)
+    return [x.strip() for x in raw.split(",") if x.strip()]
 
 # ---------------------------------------------------------------------
 # CORE
@@ -17,17 +24,25 @@ SECRET_KEY = os.environ.get(
     "django-insecure-*7!!kc@bmtx8ngui6lr@xmifmcwm6y%hnbe)rdei(b!ds8t)uq",
 )
 DEBUG = os.environ.get("DJANGO_DEBUG", "true").lower() == "true"
-ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "*").split(",")
+ALLOWED_HOSTS = _split_env_list(os.environ.get("DJANGO_ALLOWED_HOSTS", "*"))
 
+# ---------------------------------------------------------------------
+# APPS
+# ---------------------------------------------------------------------
 INSTALLED_APPS = [
+    # Django
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+
+    # Third-party
     "rest_framework",
     "corsheaders",
+
+    # Local apps
     "product",
     "payments",
     "account",
@@ -35,8 +50,13 @@ INSTALLED_APPS = [
     "newsletter",
 ]
 
+# ---------------------------------------------------------------------
+# MIDDLEWARE
+# ---------------------------------------------------------------------
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    # Serve static files in prod
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -48,10 +68,14 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = "my_project.urls"
 
+# ---------------------------------------------------------------------
+# TEMPLATES
+# ---------------------------------------------------------------------
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [BASE_DIR / "templates"],  # for templates/emails/password_reset.html
+        # for templates/emails/password_reset.html
+        "DIRS": [BASE_DIR / "templates"],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -70,28 +94,29 @@ WSGI_APPLICATION = "my_project.wsgi.application"
 # DATABASE
 # ---------------------------------------------------------------------
 DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.environ.get("POSTGRES_DB", "ecommerce_db"),
-        "USER": os.environ.get("POSTGRES_USER", "postgres"),
-        "PASSWORD": os.environ.get("POSTGRES_PASSWORD", "hh"),
-        "HOST": os.environ.get("POSTGRES_HOST", "localhost"),
-        "PORT": os.environ.get("POSTGRES_PORT", "5432"),
-    }
+    "default": dj_database_url.config(
+        default=os.environ.get(
+            "DATABASE_URL",
+            "postgres://postgres:hh@localhost:5432/ecommerce_db"  # local fallback
+        ),
+        conn_max_age=600,
+    )
 }
 
 # ---------------------------------------------------------------------
-# AUTH / JWT
+# AUTH / JWT / DRF
 # ---------------------------------------------------------------------
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
 ]
+
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=300),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
     "AUTH_HEADER_TYPES": ("Bearer",),
 }
+
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "rest_framework_simplejwt.authentication.JWTAuthentication",
@@ -104,10 +129,24 @@ REST_FRAMEWORK = {
 # ---------------------------------------------------------------------
 STATIC_URL = "/static/"
 MEDIA_URL = "/images/"
-STATICFILES_DIRS = [BASE_DIR / "static"]
-MEDIA_ROOT = BASE_DIR / "static" / "images"
-DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+# Where Django will *collect* static files for production (e.g., Coolify/Gunicorn)
+STATIC_ROOT = BASE_DIR / "staticfiles"
+
+# Where user-uploaded files (ImageField/FileField) are stored
+MEDIA_ROOT = BASE_DIR / "static" / "images"
+
+# Django 4.2+ storage API — define BOTH 'default' and 'staticfiles'
+STORAGES = {
+    # default storage for FileField/ImageField (local disk)
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    # WhiteNoise compression/manifest for staticfiles
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
 # ---------------------------------------------------------------------
 # I18N / TZ
 # ---------------------------------------------------------------------
@@ -120,47 +159,69 @@ USE_TZ = True
 # CORS / CSRF
 # ---------------------------------------------------------------------
 CORS_ALLOW_ALL_ORIGINS = True
-CSRF_TRUSTED_ORIGINS = os.environ.get("CSRF_TRUSTED_ORIGINS", "http://localhost:3000").split(",")
+CSRF_TRUSTED_ORIGINS = _split_env_list(
+    os.environ.get("CSRF_TRUSTED_ORIGINS", "http://localhost:3000")
+)
 
 # ---------------------------------------------------------------------
-# FRONTEND + WHATSAPP ADMIN
+# FRONTEND & BUSINESS SETTINGS
 # ---------------------------------------------------------------------
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
-WHATSAPP_ADMIN = os.environ.get("WHATSAPP_ADMIN", "2126XXXXXXXX")  # no '+'
+WHATSAPP_ADMIN = os.environ.get("WHATSAPP_ADMIN", "2126XXXXXXXX")  # digits only
 
 # ---------------------------------------------------------------------
-# EMAIL — Gmail SMTP (free) or console backend for dev
+# EMAIL — Gmail SMTP (free) or console backend
 # ---------------------------------------------------------------------
-EMAIL_BACKEND = os.environ.get("EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend")
+EMAIL_BACKEND = os.environ.get(
+    "EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend"
+)
 
-# Gmail default (TLS on 587)
+# Gmail defaults (TLS on 587)
 EMAIL_HOST = os.environ.get("EMAIL_HOST", "smtp.gmail.com")
 EMAIL_PORT = int(os.environ.get("EMAIL_PORT", 587))
 EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "true").lower() == "true"
 EMAIL_USE_SSL = os.environ.get("EMAIL_USE_SSL", "false").lower() == "true"
-EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")         # your Gmail
-EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "") # your 16-char App Password
-DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", f"MiniGlow <{EMAIL_HOST_USER}>")
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")          # your Gmail
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")  # 16-char App Password
+DEFAULT_FROM_EMAIL = os.environ.get(
+    "DEFAULT_FROM_EMAIL",
+    f"MiniGlow <{EMAIL_HOST_USER}>" if EMAIL_HOST_USER else "MiniGlow <no-reply@miniglow.ma>",
+)
 
-# Console backend override for dev
+# Console override for dev
 if EMAIL_BACKEND.endswith("console.EmailBackend"):
-    EMAIL_HOST = ""
-    EMAIL_PORT = 0
-    EMAIL_HOST_USER = ""
-    EMAIL_HOST_PASSWORD = ""
-    EMAIL_USE_TLS = False
+    EMAIL_HOST = "smtp.gmail.com"
+    EMAIL_PORT = 587
+    EMAIL_HOST_USER = "labshaay@gmail.com"
+    EMAIL_HOST_PASSWORD = "Shaay123456@"
+    EMAIL_USE_TLS = True
     EMAIL_USE_SSL = False
 
-# Safety check
+# Safety check (Coolify env sometimes mis-set both)
 if EMAIL_USE_TLS and EMAIL_USE_SSL:
     raise ValueError("EMAIL_USE_TLS and EMAIL_USE_SSL cannot both be True.")
 
 # ---------------------------------------------------------------------
-# LOGGING — see mail errors in console
+# SECURITY (sane defaults for reverse proxy / HTTPS)
+# ---------------------------------------------------------------------
+if not DEBUG:
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = int(os.environ.get("SECURE_HSTS_SECONDS", "0"))  # set >0 when sure
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_BROWSER_XSS_FILTER = True
+    X_FRAME_OPTIONS = "DENY"
+
+# ---------------------------------------------------------------------
+# LOGGING — see mail issues in console
 # ---------------------------------------------------------------------
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
     "handlers": {"console": {"class": "logging.StreamHandler"}},
-    "loggers": {"django.core.mail": {"handlers": ["console"], "level": "DEBUG"}},
+    "loggers": {
+        "django.core.mail": {"handlers": ["console"], "level": "DEBUG"},
+        "django.security.DisallowedHost": {"handlers": ["console"], "level": "ERROR"},
+    },
 }
