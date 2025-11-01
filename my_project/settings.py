@@ -138,15 +138,14 @@ MEDIA_ROOT = BASE_DIR / "static" / "images"
 
 # Django 4.2+ storage API — define BOTH 'default' and 'staticfiles'
 STORAGES = {
-    # default storage for FileField/ImageField (local disk)
     "default": {
         "BACKEND": "django.core.files.storage.FileSystemStorage",
     },
-    # WhiteNoise compression/manifest for staticfiles
     "staticfiles": {
-        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
     },
 }
+
 # ---------------------------------------------------------------------
 # I18N / TZ
 # ---------------------------------------------------------------------

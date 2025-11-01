@@ -1,29 +1,32 @@
-# backend/Dockerfile
+# Use a slim Python base
 FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1
+    PYTHONUNBUFFERED=1
 
-# OS deps (Postgres, build tools)
+# OS deps (build tools + libpq for psycopg2)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential libpq-dev curl && \
-    rm -rf /var/lib/apt/lists/*
+    build-essential libpq-dev curl \
+ && rm -rf /var/lib/apt/lists/*
 
+# Workdir
 WORKDIR /app
 
-# Dépendances Python
-COPY backend/requirements.txt /app/requirements.txt
+# Install Python deps first (better cache)
+COPY requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Code de l'app
-COPY backend /app
+# Copy project source
+COPY . /app
 
-# Entrypoint: migre + collectstatic + lance gunicorn
-COPY backend/entrypoint.sh /app/entrypoint.sh
-RUN chmod +x /app/entrypoint.sh
+# (Optional) show Django version for debug
+RUN python -c "import django,sys; print('Django:', django.get_version())"
 
-# Port interne
+# Expose the app port
 EXPOSE 8000
+
+# Entrypoint (runs migrate, collectstatic, then gunicorn)
+COPY entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
 
 CMD ["/app/entrypoint.sh"]
