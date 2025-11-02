@@ -2,12 +2,10 @@
 import os
 from pathlib import Path
 from datetime import timedelta
+from typing import Optional
 
 from dotenv import load_dotenv
 import dj_database_url
-
-from __future__ import annotations
-
 
 # ---------------------------------------------------------------------
 # BASE & ENV
@@ -16,7 +14,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # charge .env pour le dev local uniquement (inoffensif en prod)
 load_dotenv(BASE_DIR / ".env")
 
-def _split_env_list(value: str | None, default: str = ""):
+def _split_env_list(value: Optional[str], default: str = "") -> list[str]:
     raw = (value if value is not None else default)
     return [x.strip() for x in raw.split(",") if x.strip()]
 
