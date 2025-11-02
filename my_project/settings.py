@@ -6,6 +6,9 @@ from datetime import timedelta
 from dotenv import load_dotenv
 import dj_database_url
 
+from __future__ import annotations
+
+
 # ---------------------------------------------------------------------
 # BASE & ENV
 # ---------------------------------------------------------------------
