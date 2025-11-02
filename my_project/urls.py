@@ -12,6 +12,7 @@ urlpatterns = [
     path('account/', include('account.urls')),
     path('api/newsletter/', include('newsletter.urls')),
     path('health/', health),  # <-- add this line
+    
 ] + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
 
 urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
