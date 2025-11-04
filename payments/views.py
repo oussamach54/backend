@@ -6,6 +6,7 @@ from rest_framework import permissions
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status as http
+from rest_framework.permissions import IsAuthenticated
 
 from .models import PaymentOrder, ShippingRate
 from .serializers import ShippingRateSerializer
@@ -193,3 +194,9 @@ class ShippingRateAdminUpdateDelete(APIView):
             return Response({"detail": "Not found"}, status=404)
         obj.delete()
         return Response(status=204)
+
+class CheckToken(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        return Response({"valid": True, "user": request.user.id}, status=200)
