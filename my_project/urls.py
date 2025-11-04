@@ -5,26 +5,26 @@ from django.conf import settings
 from django.conf.urls.static import static
 from my_project.health import health
 
+# ✅ import the JWT views
+from account.views import MyTokenObtainPairView
+from rest_framework_simplejwt.views import TokenRefreshView
+
 urlpatterns = [
     path("admin/", admin.site.urls),
 
-    # Product API (unchanged)
-    path("api/", include("product.urls")),
+    # ✅ Make /api/token/ and /api/token/refresh/ unambiguous
+    path("api/token/", MyTokenObtainPairView.as_view(), name="token_obtain_pair"),
+    path("api/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
 
-    # ✅ Payments under /api/payments/... (what the frontend expects)
+    # APIs
     path("api/payments/", include("payments.urls")),
-    # (optional backward-compat so /payments/... continues to work)
     path("payments/", include("payments.urls")),
-
-    # ✅ Expose account routes at BOTH /account/... and root
-    # This makes /account/login/ work AND also /api/token/ etc. from account/urls.py.
     path("", include("account.urls")),
     path("account/", include("account.urls")),
-
-    # Newsletter (unchanged)
+    path("api/", include("product.urls")),
     path("api/newsletter/", include("newsletter.urls")),
 
-    # Health (unchanged)
+    # health
     path("health/", health),
 ] + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
 
