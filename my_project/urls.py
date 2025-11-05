@@ -11,7 +11,7 @@ urlpatterns = [
     path('api/', include('product.urls')),           # products, wishlist, brands, shipping (product app)
     path('api/payments/', include('payments.urls')), # payments + shipping-rates (payments app)
     path('api/account/', include('account.urls')),   # account endpoints
-    path('/health/', health),
+    path('health/', health),
 ] + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
 
 urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
