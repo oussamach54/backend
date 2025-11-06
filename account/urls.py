@@ -2,7 +2,7 @@
 from django.urls import path
 from .views import (
     UserRegisterView,
-    MyTokenObtainPairView,
+    MyTokenObtainPairView,   # custom login (email or username)
     GoogleLoginView,
     CardsListView,
     UserAccountDetailsView,
