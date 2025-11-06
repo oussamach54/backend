@@ -2,7 +2,7 @@
 from django.urls import path
 from .views import (
     UserRegisterView,
-    MyTokenObtainPairView,
+    MyTokenObtainPairView,   # custom login (kept)
     GoogleLoginView,
     CardsListView,
     UserAccountDetailsView,
@@ -23,7 +23,7 @@ from .views import (
 urlpatterns = [
     # auth
     path("register/", UserRegisterView.as_view(), name="register"),
-    path("login/", MyTokenObtainPairView.as_view(), name="token_obtain_pair"),
+    path("login/", MyTokenObtainPairView.as_view(), name="token_obtain_pair"),  # kept for compatibility
     path("google-login/", GoogleLoginView.as_view(), name="google_login"),
 
     # cards
