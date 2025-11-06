@@ -1,5 +1,4 @@
 # account/views.py
-
 from django.contrib.auth.models import User
 from django.contrib.auth.hashers import make_password, check_password
 from django.db.models import Q
@@ -81,17 +80,25 @@ class UserRegisterView(APIView):
 # JWT Login — accepts EMAIL or USERNAME + password
 # ============================================================
 class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
+    """
+    Accepts JSON body with either:
+      { "email": "...", "password": "..." }
+    or
+      { "username": "...", "password": "..." }
+    """
     def validate(self, attrs):
         ident = (self.initial_data.get("email") or self.initial_data.get("username") or "").strip()
         password = (self.initial_data.get("password") or "").strip()
 
         if not ident or not password:
+            # Use the parent error to keep response format
             raise self.error_messages.get("no_active_account", Exception("No active account"))
 
         try:
             user = User.objects.get(Q(email__iexact=ident) | Q(username__iexact=ident))
             attrs["username"] = user.username
         except User.DoesNotExist:
+            # Let SimpleJWT try (will 401)
             attrs["username"] = ident
 
         data = super().validate(attrs)
@@ -107,6 +114,7 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
 
 
 class MyTokenObtainPairView(TokenObtainPairView):
+    permission_classes = [permissions.AllowAny]
     serializer_class = MyTokenObtainPairSerializer
 
 
@@ -383,7 +391,6 @@ class PasswordResetRequestView(APIView):
         try:
             msg.send(fail_silently=False)
         except Exception as e:
-            # log print; logging config will show it in console
             print("Erreur d’envoi d’email:", e)
 
         return Response({"detail": "Si un compte existe, un email a été envoyé."}, status=200)
@@ -432,7 +439,7 @@ class CreateCODOrderView(APIView):
       "notes": "Optionnel"
     }
     """
-    permission_classes = [permissions.IsAuthenticated]  # change to AllowAny if you allow guest orders
+    permission_classes = [permissions.IsAuthenticated]  # change to AllowAny to allow guest orders
 
     def post(self, request):
         serializer = OrderCODCreateSerializer(data=request.data)
@@ -448,5 +455,8 @@ class CreateCODOrderView(APIView):
             **serializer.validated_data,
         )
         data = AllOrdersListSerializer(order).data
-        data["whatsapp_url"] = order.build_whatsapp_url()
+        if hasattr(order, "build_whatsapp_url"):
+            data["whatsapp_url"] = order.build_whatsapp_url()
+        else:
+            data["whatsapp_url"] = ""
         return Response(data, status=status.HTTP_201_CREATED)

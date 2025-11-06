@@ -5,9 +5,8 @@ from django.conf import settings
 from django.conf.urls.static import static
 from my_project.health import health
 
-# SimpleJWT
+# SimpleJWT (refresh/verify)
 from rest_framework_simplejwt.views import (
-    TokenObtainPairView,
     TokenRefreshView,
     TokenVerifyView,
 )
@@ -15,29 +14,28 @@ from rest_framework_simplejwt.views import (
 urlpatterns = [
     path("admin/", admin.site.urls),
 
-    # --- PRODUCTS stay under /api/ (as before) ---
+    # Products under /api/
     path("api/", include("product.urls")),
 
-    # --- Expose ACCOUNT under both /account/ and /api/account/ ---
+    # Expose ACCOUNT under both /account/ and /api/account/
     path("account/", include("account.urls")),
     path("api/account/", include("account.urls")),
 
-    # --- Expose PAYMENTS under both /payments/ and /api/payments/ ---
+    # Expose PAYMENTS under both /payments/ and /api/payments/
     path("payments/", include("payments.urls")),
     path("api/payments/", include("payments.urls")),
 
-    # Newsletter (historically under /api/)
+    # Newsletter under /api/
     path("api/newsletter/", include("newsletter.urls")),
 
     # Health
     path("health/", health),
 
-    # --- SimpleJWT under both /api/token/* and /token/* ---
-    path("api/token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
+    # SimpleJWT refresh/verify (obtain handled by account/login/)
     path("api/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
     path("api/token/verify/", TokenVerifyView.as_view(), name="token_verify"),
 
-    path("token/", TokenObtainPairView.as_view(), name="token_obtain_pair_short"),
+    # optional short aliases
     path("token/refresh/", TokenRefreshView.as_view(), name="token_refresh_short"),
     path("token/verify/", TokenVerifyView.as_view(), name="token_verify_short"),
 ] + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
