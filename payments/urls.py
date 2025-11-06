@@ -9,9 +9,11 @@ urlpatterns = [
     path("cmi/fail/<int:pk>/", views.CmiFail.as_view(), name="payments-cmi-fail"),
     path("health/", views.Health.as_view(), name="payments-health"),
 
+    # NEW: token check used by frontend
+    path("check-token/", views.CheckToken.as_view(), name="payments-check-token"),
+
     # shipping rates
     path("shipping-rates/", views.ShippingRateListCreate.as_view(), name="shipping-rates"),
-    # optional admin edit/delete:
     path("admin/shipping-rates/<int:pk>/", views.ShippingRateAdminUpdateDelete.as_view(),
          name="shipping-rate-admin"),
 ]

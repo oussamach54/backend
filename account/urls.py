@@ -21,32 +21,31 @@ from .views import (
 )
 
 urlpatterns = [
-    # auth
+    # --- Optional alias (not required by your frontend, but harmless) ---
+    path("login/", MyTokenObtainPairView.as_view(), name="account_login"),
+
+    # --- Registration / Google ---
     path("register/", UserRegisterView.as_view(), name="register"),
-    path("login/", MyTokenObtainPairView.as_view(), name="token_obtain_pair"),
     path("google-login/", GoogleLoginView.as_view(), name="google_login"),
 
-    # cards
-    path("cards/", CardsListView.as_view(), name="cards"),
+    # --- Users (these match your frontend calls) ---
+    path("user/<int:pk>/", UserAccountDetailsView.as_view(), name="user_details"),
+    path("user_update/<int:pk>/", UserAccountUpdateView.as_view(), name="user_update"),
+    path("user_delete/<int:pk>/", UserAccountDeleteView.as_view(), name="user_delete"),
 
-    # users
-    path("users/<int:pk>/", UserAccountDetailsView.as_view(), name="user_details"),
-    path("users/<int:pk>/update/", UserAccountUpdateView.as_view(), name="user_update"),
-    path("users/<int:pk>/delete/", UserAccountDeleteView.as_view(), name="user_delete"),
+    # --- Addresses (match your frontend) ---
+    path("all-address-details/", UserAddressesListView.as_view(), name="addr_list"),
+    path("create-address/", CreateUserAddressView.as_view(), name="addr_create"),
+    path("address-details/<int:pk>/", UserAddressDetailsView.as_view(), name="addr_detail"),
+    path("update-address/<int:pk>/", UpdateUserAddressView.as_view(), name="addr_update"),
+    path("delete-address/<int:pk>/", DeleteUserAddressView.as_view(), name="addr_delete"),
 
-    # addresses
-    path("addresses/", UserAddressesListView.as_view(), name="addresses_list"),
-    path("addresses/create/", CreateUserAddressView.as_view(), name="address_create"),
-    path("addresses/<int:pk>/", UserAddressDetailsView.as_view(), name="address_details"),
-    path("addresses/<int:pk>/update/", UpdateUserAddressView.as_view(), name="address_update"),
-    path("addresses/<int:pk>/delete/", DeleteUserAddressView.as_view(), name="address_delete"),
-
-    # orders
-    path("orders/", OrdersListView.as_view(), name="orders_list"),
+    # --- Orders (match your frontend) ---
+    path("all-orders-list/", OrdersListView.as_view(), name="orders_list"),
     path("orders/<int:pk>/status/", ChangeOrderStatus.as_view(), name="order_change_status"),
     path("orders/cod/", CreateCODOrderView.as_view(), name="create_cod_order"),
 
-    # password reset
+    # --- Password reset (match your frontend) ---
     path("password-reset/", PasswordResetRequestView.as_view(), name="password_reset"),
     path("password-reset/confirm/", PasswordResetConfirmView.as_view(), name="password_reset_confirm"),
 ]
