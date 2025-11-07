@@ -124,26 +124,17 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.AllowAny",),
 }
 
-# ---------------------------------------------------------------------
-# STATIC / MEDIA
-# ---------------------------------------------------------------------
+# ------------ STATIC / MEDIA (IMPORTANT) ------------
 STATIC_URL = "/static/"
-MEDIA_URL = "/images/"
-
-# Where Django will *collect* static files for production (e.g., Coolify/Gunicorn)
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
-# Where user-uploaded files (ImageField/FileField) are stored
+# All uploads live here, e.g. static/images/products/xxx.jpg
+MEDIA_URL = "/images/"
 MEDIA_ROOT = BASE_DIR / "static" / "images"
 
-# Django 4.2+ storage API — define BOTH 'default' and 'staticfiles'
 STORAGES = {
-    "default": {
-        "BACKEND": "django.core.files.storage.FileSystemStorage",
-    },
-    "staticfiles": {
-        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
-    },
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
 }
 
 
