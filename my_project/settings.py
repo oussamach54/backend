@@ -2,23 +2,16 @@
 import os
 from pathlib import Path
 from datetime import timedelta
-
 from dotenv import load_dotenv
 import dj_database_url
 
-# ---------------------------------------------------------------------
-# BASE & ENV
-# ---------------------------------------------------------------------
 BASE_DIR = Path(__file__).resolve().parent.parent
-load_dotenv(BASE_DIR / ".env")  # load .env if present (dev)
+load_dotenv(BASE_DIR / ".env")
 
 def _split_env_list(value: str, default: str = ""):
     raw = (value or default)
     return [x.strip() for x in raw.split(",") if x.strip()]
 
-# ---------------------------------------------------------------------
-# CORE
-# ---------------------------------------------------------------------
 SECRET_KEY = os.environ.get(
     "DJANGO_SECRET_KEY",
     "django-insecure-*7!!kc@bmtx8ngui6lr@xmifmcwm6y%hnbe)rdei(b!ds8t)uq",
@@ -26,36 +19,15 @@ SECRET_KEY = os.environ.get(
 DEBUG = os.environ.get("DJANGO_DEBUG", "true").lower() == "true"
 ALLOWED_HOSTS = _split_env_list(os.environ.get("DJANGO_ALLOWED_HOSTS", "*"))
 
-# ---------------------------------------------------------------------
-# APPS
-# ---------------------------------------------------------------------
 INSTALLED_APPS = [
-    # Django
-    "django.contrib.admin",
-    "django.contrib.auth",
-    "django.contrib.contenttypes",
-    "django.contrib.sessions",
-    "django.contrib.messages",
-    "django.contrib.staticfiles",
-
-    # Third-party
-    "rest_framework",
-    "corsheaders",
-
-    # Local apps
-    "product",
-    "payments",
-    "account",
-    
-    "newsletter",
+    "django.contrib.admin", "django.contrib.auth", "django.contrib.contenttypes",
+    "django.contrib.sessions", "django.contrib.messages", "django.contrib.staticfiles",
+    "rest_framework", "corsheaders",
+    "product", "payments", "account", "newsletter",
 ]
 
-# ---------------------------------------------------------------------
-# MIDDLEWARE
-# ---------------------------------------------------------------------
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
-    # Serve static files in prod
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "corsheaders.middleware.CorsMiddleware",
@@ -68,44 +40,27 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = "my_project.urls"
 
-# ---------------------------------------------------------------------
-# TEMPLATES
-# ---------------------------------------------------------------------
-TEMPLATES = [
-    {
-        "BACKEND": "django.template.backends.django.DjangoTemplates",
-        # for templates/emails/password_reset.html
-        "DIRS": [BASE_DIR / "templates"],
-        "APP_DIRS": True,
-        "OPTIONS": {
-            "context_processors": [
-                "django.template.context_processors.debug",
-                "django.template.context_processors.request",
-                "django.contrib.auth.context_processors.auth",
-                "django.contrib.messages.context_processors.messages",
-            ],
-        },
-    },
-]
+TEMPLATES = [{
+    "BACKEND": "django.template.backends.django.DjangoTemplates",
+    "DIRS": [BASE_DIR / "templates"],
+    "APP_DIRS": True,
+    "OPTIONS": {"context_processors": [
+        "django.template.context_processors.debug",
+        "django.template.context_processors.request",
+        "django.contrib.auth.context_processors.auth",
+        "django.contrib.messages.context_processors.messages",
+    ]},
+}]
 
 WSGI_APPLICATION = "my_project.wsgi.application"
 
-# ---------------------------------------------------------------------
-# DATABASE
-# ---------------------------------------------------------------------
 DATABASES = {
     "default": dj_database_url.config(
-        default=os.environ.get(
-            "DATABASE_URL",
-            "postgres://postgres:hh@localhost:5432/ecommerce_db"  # local fallback
-        ),
+        default=os.environ.get("DATABASE_URL", "postgres://postgres:hh@localhost:5432/ecommerce_db"),
         conn_max_age=600,
     )
 }
 
-# ---------------------------------------------------------------------
-# AUTH / JWT / DRF
-# ---------------------------------------------------------------------
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
@@ -124,54 +79,40 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.AllowAny",),
 }
 
-# ------------ STATIC / MEDIA (IMPORTANT) ------------
+# ---------- Static & Media ----------
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
-# All uploads live here, e.g. static/images/products/xxx.jpg
+# Serve uploaded media under /images/
 MEDIA_URL = "/images/"
-MEDIA_ROOT = BASE_DIR / "media"   # <— change from static/images to media
+MEDIA_ROOT = BASE_DIR / "media"   # <- persistent volume should mount here in prod
 
 STORAGES = {
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
     "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
 }
 
-
-# ---------------------------------------------------------------------
-# CORS / CSRF
-# ---------------------------------------------------------------------
+# ---------- CORS / CSRF ----------
 CORS_ALLOW_ALL_ORIGINS = True
 CSRF_TRUSTED_ORIGINS = _split_env_list(
-    os.environ.get("CSRF_TRUSTED_ORIGINS", "http://localhost:3000")
+    os.environ.get("CSRF_TRUSTED_ORIGINS", "http://localhost:3000,https://miniglowbyshay.cloud")
 )
 
-# ---------------------------------------------------------------------
-# FRONTEND & BUSINESS SETTINGS
-# ---------------------------------------------------------------------
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
-WHATSAPP_ADMIN = os.environ.get("WHATSAPP_ADMIN", "2126XXXXXXXX")  # digits only
+WHATSAPP_ADMIN = os.environ.get("WHATSAPP_ADMIN", "2126XXXXXXXX")
 
-# ---------------------------------------------------------------------
-# EMAIL — Gmail SMTP (free) or console backend
-# ---------------------------------------------------------------------
-EMAIL_BACKEND = os.environ.get(
-    "EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend"
-)
-
-# Gmail defaults (TLS on 587)
+# ---------- Email (your values kept) ----------
+EMAIL_BACKEND = os.environ.get("EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend")
 EMAIL_HOST = os.environ.get("EMAIL_HOST", "smtp.gmail.com")
 EMAIL_PORT = int(os.environ.get("EMAIL_PORT", 587))
 EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "true").lower() == "true"
 EMAIL_USE_SSL = os.environ.get("EMAIL_USE_SSL", "false").lower() == "true"
-EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")          # your Gmail
-EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")  # 16-char App Password
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
 DEFAULT_FROM_EMAIL = os.environ.get(
     "DEFAULT_FROM_EMAIL",
     f"MiniGlow <{EMAIL_HOST_USER}>" if EMAIL_HOST_USER else "MiniGlow <no-reply@miniglow.ma>",
 )
-
-# Console override for dev
 if EMAIL_BACKEND.endswith("console.EmailBackend"):
     EMAIL_HOST = "smtp.gmail.com"
     EMAIL_PORT = 587
@@ -179,26 +120,19 @@ if EMAIL_BACKEND.endswith("console.EmailBackend"):
     EMAIL_HOST_PASSWORD = "Shaay123456@"
     EMAIL_USE_TLS = True
     EMAIL_USE_SSL = False
-
-# Safety check (Coolify env sometimes mis-set both)
 if EMAIL_USE_TLS and EMAIL_USE_SSL:
     raise ValueError("EMAIL_USE_TLS and EMAIL_USE_SSL cannot both be True.")
 
-# ---------------------------------------------------------------------
-# SECURITY (sane defaults for reverse proxy / HTTPS)
-# ---------------------------------------------------------------------
+# ---------- Security ----------
 if not DEBUG:
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
-    SECURE_HSTS_SECONDS = int(os.environ.get("SECURE_HSTS_SECONDS", "0"))  # set >0 when sure
+    SECURE_HSTS_SECONDS = int(os.environ.get("SECURE_HSTS_SECONDS", "0"))
     SECURE_CONTENT_TYPE_NOSNIFF = True
     SECURE_BROWSER_XSS_FILTER = True
     X_FRAME_OPTIONS = "DENY"
 
-# ---------------------------------------------------------------------
-# LOGGING — see mail issues in console
-# ---------------------------------------------------------------------
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
