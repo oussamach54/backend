@@ -1,3 +1,4 @@
+# backend/product/views.py
 import json
 from decimal import Decimal, InvalidOperation
 
@@ -16,10 +17,9 @@ from .serializers import (
     ShippingRateSerializer,
 )
 
-# ---------- helpers ----------
+# ---------------- helpers ----------------
 
 def _to_dec(v):
-    """Parse '40,00' or '40.00' → Decimal; None if empty/invalid."""
     if v in (None, ""):
         return None
     s = str(v).strip().replace(",", ".")
@@ -28,8 +28,30 @@ def _to_dec(v):
     except (InvalidOperation, ValueError, TypeError):
         return None
 
-
-# ======================= PRODUCTS =======================
+def _to_list(v):
+    """
+    Accepts JSON string '["face","acne"]', CSV 'face,acne', or list.
+    Returns a cleaned list of unique slugs (lowercase).
+    """
+    if v in (None, "", []):
+        return []
+    if isinstance(v, str):
+        try:
+            parsed = json.loads(v)
+            if isinstance(parsed, list):
+                v = parsed
+            else:
+                v = [x.strip() for x in v.split(",")]
+        except Exception:
+            v = [x.strip() for x in v.split(",")]
+    if isinstance(v, (list, tuple)):
+        out = []
+        for x in v:
+            s = (str(x or "")).strip().lower()
+            if s and s not in out:
+                out.append(s)
+        return out
+    return []
 
 class ProductsList(APIView):
     permission_classes = [permissions.AllowAny]
@@ -37,10 +59,12 @@ class ProductsList(APIView):
     def get(self, request):
         qs = Product.objects.all().order_by("-id")
 
-        type_param = request.query_params.get("type") or request.query_params.get("category")
-        if type_param:
-            qs = qs.filter(category=type_param.lower())
+        # category filter (?type= or ?category=)
+        slug = (request.query_params.get("type") or request.query_params.get("category") or "").lower().strip()
+        if slug:
+            qs = qs.filter(Q(category=slug) | Q(categories__contains=[slug]))
 
+        # brand filter (exact)
         brand = request.query_params.get("brand")
         if brand:
             qs = qs.filter(brand__iexact=brand)
@@ -49,16 +73,15 @@ class ProductsList(APIView):
         if search:
             qs = qs.filter(Q(name__icontains=search) | Q(description__icontains=search))
 
-        return Response(ProductSerializer(qs, many=True).data, status=200)
-
+        data = ProductSerializer(qs, many=True, context={"request": request}).data
+        return Response(data, status=200)
 
 class ProductDetailView(APIView):
     permission_classes = [permissions.AllowAny]
-
     def get(self, request, pk):
         product = get_object_or_404(Product, id=pk)
-        return Response(ProductSerializer(product).data, status=200)
-
+        data = ProductSerializer(product, context={"request": request}).data
+        return Response(data, status=200)
 
 class ProductCreateView(APIView):
     permission_classes = [permissions.IsAdminUser]
@@ -66,6 +89,7 @@ class ProductCreateView(APIView):
     @transaction.atomic
     def post(self, request):
         data = request.data
+        cats = _to_list(data.get("categories"))
 
         payload = {
             "name": data.get("name"),
@@ -75,16 +99,16 @@ class ProductCreateView(APIView):
             "new_price": _to_dec(data.get("new_price")),
             "stock": data.get("stock"),
             "image": request.FILES.get("image"),
-            "category": (data.get("category") or "other").lower(),
+            "category": (data.get("category") or (cats[0] if cats else "other")).lower(),
+            "categories": cats,
         }
 
-        ser = ProductSerializer(data=payload)
+        ser = ProductSerializer(data=payload, context={"request": request})
         if not ser.is_valid():
             return Response({"detail": ser.errors}, status=400)
 
         product = ser.save()
 
-        # Variants (optional)
         raw = data.get("variants")
         if raw:
             try:
@@ -110,23 +134,20 @@ class ProductCreateView(APIView):
             except Exception:
                 pass
 
-        return Response(ProductSerializer(product).data, status=201)
-
+        out = ProductSerializer(product, context={"request": request}).data
+        return Response(out, status=201)
 
 class ProductEditView(APIView):
-    """
-    PUT /api/product-update/<pk>/
-    Comma/dot decimals accepted; empty new_price clears promo.
-    """
     permission_classes = [permissions.IsAdminUser]
 
     @transaction.atomic
     def put(self, request, pk):
         product = get_object_or_404(Product, id=pk)
         data = request.data
+        cats = _to_list(data.get("categories"))
 
         new_base = _to_dec(data.get("price"))
-        new_promo = _to_dec(data.get("new_price"))  # None if '', clears promo
+        new_promo = _to_dec(data.get("new_price"))
 
         payload = {
             "name": data.get("name", product.name),
@@ -135,14 +156,15 @@ class ProductEditView(APIView):
             "price": new_base if new_base is not None else product.price,
             "new_price": new_promo,
             "stock": data.get("stock", product.stock),
-            "category": (data.get("category", product.category) or "other").lower(),
+            "category": (data.get("category") or (cats[0] if cats else product.category)).lower(),
+            "categories": cats if cats else product.categories,
         }
 
         image_file = request.FILES.get("image")
         if image_file is not None:
             payload["image"] = image_file
 
-        ser = ProductSerializer(instance=product, data=payload, partial=True)
+        ser = ProductSerializer(instance=product, data=payload, partial=True, context={"request": request})
         if not ser.is_valid():
             return Response({"detail": ser.errors}, status=400)
 
@@ -174,7 +196,8 @@ class ProductEditView(APIView):
             except Exception:
                 pass
 
-        return Response(ProductSerializer(product).data, status=200)
+        out = ProductSerializer(product, context={"request": request}).data
+        return Response(out, status=200)
 
 
 class ProductDeleteView(APIView):
@@ -186,26 +209,27 @@ class ProductDeleteView(APIView):
         return Response({"detail": "Product successfully deleted."}, status=204)
 
 
-# ======================= WISHLIST / SHIPPING / BRANDS (unchanged) =======================
+# ======================= WISHLIST / SHIPPING / BRANDS =======================
 
 class WishlistListCreateView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
         qs = WishlistItem.objects.filter(user=request.user).select_related("product")
-        ser = WishlistItemSerializer(qs, many=True)
+        ser = WishlistItemSerializer(qs, many=True, context={"request": request})
         return Response(ser.data, status=200)
 
     def post(self, request):
         payload = request.data.copy()
+        payload["product_id"] = payload.get("product") or payload.get("product_id")
         payload["user"] = request.user.id
-        serializer = WishlistItemSerializer(data=payload)
+        serializer = WishlistItemSerializer(data=payload, context={"request": request})
         if serializer.is_valid():
             obj, created = WishlistItem.objects.get_or_create(
                 user=request.user,
                 product=serializer.validated_data["product"],
             )
-            out = WishlistItemSerializer(obj).data
+            out = WishlistItemSerializer(obj, context={"request": request}).data
             return Response(out, status=201 if created else 200)
         return Response({"detail": serializer.errors}, status=400)
 
