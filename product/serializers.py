@@ -69,4 +69,3 @@ class ShippingRateSerializer(serializers.ModelSerializer):
         model = ShippingRate
         fields = ["id", "city", "price", "active", "created_at"]
         read_only_fields = ["id", "created_at"]
-
