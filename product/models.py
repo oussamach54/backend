@@ -1,3 +1,4 @@
+# product/models.py
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from django.db import models
 from django.conf import settings
@@ -5,12 +6,22 @@ from django.conf import settings
 
 class Product(models.Model):
     class Category(models.TextChoices):
-        FACE = "face", "Face"
-        LIPS = "lips", "Lips"
-        EYES = "eyes", "Eyes"
-        EYEBROW = "eyebrow", "Eyebrow"
-        HAIR = "hair", "Hair"
+        # existing
+        FACE = "face", "Visage"
+        LIPS = "lips", "Lèvres"
+        EYES = "eyes", "Yeux"
+        EYEBROW = "eyebrow", "Sourcils"
+        HAIR = "hair", "Cheveux"
         OTHER = "other", "Other"
+
+        # NEW additions (single select still)
+        BODY = "body", "Corps"
+        PACKS = "packs", "Packs"
+        ACNE = "acne", "Acné"
+        HYPER_PIGMENTATION = "hyper_pigmentation", "Hyper pigmentation"
+        BRIGHTENING = "brightening", "Éclaircissement"
+        DRY_SKIN = "dry_skin", "Peau sèche"
+        COMBINATION_OILY = "combination_oily", "Peau mixte/grasse"
 
     name = models.CharField(max_length=200)
     description = models.TextField(blank=True)
@@ -25,7 +36,10 @@ class Product(models.Model):
     image = models.ImageField(upload_to="products/", null=True, blank=True)
 
     category = models.CharField(
-        max_length=20, choices=Category.choices, default=Category.OTHER, db_index=True
+        max_length=30,  # keep >= longest slug ("hyper_pigmentation" length 19; 30 is safe)
+        choices=Category.choices,
+        default=Category.OTHER,
+        db_index=True,
     )
     brand = models.CharField(max_length=120, blank=True, default="", db_index=True)
 
@@ -47,10 +61,6 @@ class Product(models.Model):
 
     # ----- variant-promo helpers (promo applies ONLY to biggest variant) -----
     def _biggest_variant(self):
-        """
-        Biggest = max(size_ml) if any size set, otherwise most expensive.
-        Returns a ProductVariant or None.
-        """
         vs = list(self.variants.all())
         if not vs:
             return None
@@ -61,7 +71,6 @@ class Product(models.Model):
 
     @property
     def promo_variant(self):
-        """Return the variant that should carry the promo (or None)."""
         if not self.has_discount:
             return None
         return self._biggest_variant()
@@ -73,9 +82,6 @@ class Product(models.Model):
 
     @property
     def promo_variant_new_price(self):
-        """
-        The discounted price for the promo variant (rounded to 0.01).
-        """
         v = self.promo_variant
         if not v:
             return None
@@ -136,3 +142,4 @@ class ShippingRate(models.Model):
 
     def __str__(self):
         return f"{self.city} — {self.price} DH"
+
