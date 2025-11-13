@@ -69,3 +69,19 @@ class ShippingRateAdmin(admin.ModelAdmin):
     list_display = ("id", "city", "price", "active", "created_at")
     list_filter = ("active",)
     search_fields = ("city",)
+
+
+
+from .models import Order, OrderItem
+
+class OrderItemInline(admin.TabularInline):
+    model = OrderItem
+    extra = 0
+    readonly_fields = ("name", "variant_label", "unit_price", "quantity", "line_total")
+
+@admin.register(Order)
+class OrderAdmin(admin.ModelAdmin):
+    list_display = ("id", "full_name", "phone", "city", "status", "grand_total", "created_at")
+    list_filter  = ("status", "payment_method", "city")
+    search_fields = ("full_name", "phone", "city", "email")
+    inlines = [OrderItemInline]
