@@ -210,3 +210,10 @@ LOGGING = {
         "django.security.DisallowedHost": {"handlers": ["console"], "level": "ERROR"},
     },
 }
+
+import os
+
+GOOGLE_SHEET_WEBHOOK_URL = os.environ.get(
+    "GOOGLE_SHEET_WEBHOOK_URL",
+    ""  # leave empty in dev if you don't want to send anything
+)

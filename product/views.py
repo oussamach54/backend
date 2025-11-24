@@ -10,6 +10,10 @@ from rest_framework import status, permissions
 from rest_framework.views import APIView
 from rest_framework.response import Response
 
+import requests
+from django.conf import settings
+
+
 from .models import (
     Product,
     ProductVariant,
@@ -410,7 +414,11 @@ class OrdersCreateView(APIView):
                 status=400,
             )
 
+        # ✅ NEW: send to Google Sheet (non-blocking)
+        send_order_to_google_sheet(order)
+
         return Response(OrderDetailSerializer(order).data, status=201)
+
 
 
 class MyOrdersListView(APIView):
@@ -475,3 +483,38 @@ class AdminOrderDetailView(APIView):
         order = get_object_or_404(Order, pk=pk)
         order.delete()
         return Response(status=204)
+
+# -------- Google Sheets integration ---------
+
+def send_order_to_google_sheet(order):
+    """
+    Send basic order info to a Google Apps Script / webhook
+    that writes into Google Sheets.
+
+    GOOGLE_SHEET_WEBHOOK_URL must be defined in settings.py
+    (or .env) – otherwise this does nothing.
+    """
+    url = getattr(settings, "GOOGLE_SHEET_WEBHOOK_URL", "")
+    if not url:
+        return
+
+    payload = {
+        "id": order.id,
+        "full_name": order.full_name,
+        "phone": order.phone,
+        "city": order.city,
+        "address": order.address,
+        "notes": order.notes or "",
+        "items_total": str(order.items_total),
+        "shipping_price": str(order.shipping_price),
+        "grand_total": str(order.grand_total),
+        "status": order.status,
+        "created_at": order.created_at.isoformat(),
+    }
+
+    try:
+        # You can also use data=payload if your script expects form-data
+        requests.post(url, json=payload, timeout=5)
+    except Exception:
+        # We do not break checkout if Google is down
+        pass
