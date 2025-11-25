@@ -1,5 +1,8 @@
 # backend/product/serializers.py
 from decimal import Decimal, ROUND_HALF_UP
+from django.utils import timezone
+import pytz
+
 
 from rest_framework import serializers
 
@@ -81,7 +84,6 @@ class ShippingRateSerializer(serializers.ModelSerializer):
 
 
 # ======================= ORDERS =======================
-
 
 class OrderItemWriteSerializer(serializers.Serializer):
     product_id = serializers.IntegerField()
@@ -248,6 +250,7 @@ class OrderItemReadSerializer(serializers.ModelSerializer):
 
 class OrderDetailSerializer(serializers.ModelSerializer):
     items = OrderItemReadSerializer(many=True)
+    created_at_local = serializers.SerializerMethodField()
 
     class Meta:
         model = Order
@@ -265,5 +268,14 @@ class OrderDetailSerializer(serializers.ModelSerializer):
             "items_total",
             "grand_total",
             "created_at",
+            "created_at_local",  # ✅ date/heure locale Casablanca
             "items",
         ]
+
+    def get_created_at_local(self, obj):
+        """
+        Retourne la date/heure locale (Afrique/Casablanca) au format ISO.
+        """
+        tz = pytz.timezone("Africa/Casablanca")
+        local_dt = timezone.localtime(obj.created_at, tz)
+        return local_dt.isoformat()
