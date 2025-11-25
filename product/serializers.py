@@ -268,14 +268,13 @@ class OrderDetailSerializer(serializers.ModelSerializer):
             "items_total",
             "grand_total",
             "created_at",
-            "created_at_local",  # ✅ date/heure locale Casablanca
+            "created_at_local",     # <--- OK
             "items",
         ]
 
     def get_created_at_local(self, obj):
-        """
-        Retourne la date/heure locale (Afrique/Casablanca) au format ISO.
-        """
+        # Convert UTC → Casablanca time
         tz = pytz.timezone("Africa/Casablanca")
-        local_dt = timezone.localtime(obj.created_at, tz)
-        return local_dt.isoformat()
+        utc = obj.created_at
+        local_dt = utc.astimezone(tz)
+        return local_dt.strftime("%Y-%m-%d %H:%M:%S")
