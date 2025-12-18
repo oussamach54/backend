@@ -3,7 +3,6 @@ from decimal import Decimal, ROUND_HALF_UP
 from django.utils import timezone
 import pytz
 
-
 from rest_framework import serializers
 
 from .models import (
@@ -19,7 +18,7 @@ from .models import (
 class ProductVariantSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProductVariant
-        fields = ["id", "label", "size_ml", "price", "in_stock", "sku"]
+        fields = ["id", "label", "size_ml", "price", "new_price", "in_stock", "sku"]
 
 
 class ProductSerializer(serializers.ModelSerializer):
@@ -115,16 +114,37 @@ class OrderCreateSerializer(serializers.ModelSerializer):
         return value
 
     def _unit_price_for(self, product, variant):
+        """
+        ✅ PRIX FINAL:
+        1) si variante => prendre variant.new_price si valide
+        2) sinon fallback sur promo "biggest variant" (ton ancien système)
+        3) sinon variant.price
+        4) si pas de variante => promo produit (new_price) sinon price
+        """
         if variant:
+            # ✅ promo par variante (priorité)
+            try:
+                if (
+                    variant.new_price is not None
+                    and Decimal(str(variant.new_price)) > Decimal("0")
+                    and Decimal(str(variant.new_price)) < Decimal(str(variant.price))
+                ):
+                    return variant.new_price
+            except Exception:
+                pass
+
+            # (garde ton ancienne logique promo "biggest variant")
             if (
                 product.has_discount
                 and product.promo_variant_id
                 and str(variant.id) == str(product.promo_variant_id)
             ):
                 return product.promo_variant_new_price or variant.price
+
             return variant.price
-        else:
-            return product.new_price if product.has_discount else product.price
+
+        # pas de variante => promo produit
+        return product.new_price if product.has_discount else product.price
 
     def create(self, validated):
         """
@@ -268,7 +288,7 @@ class OrderDetailSerializer(serializers.ModelSerializer):
             "items_total",
             "grand_total",
             "created_at",
-            "created_at_local",     # <--- OK
+            "created_at_local",
             "items",
         ]
 
