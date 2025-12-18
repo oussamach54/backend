@@ -20,7 +20,7 @@ class ProductVariantSerializer(serializers.ModelSerializer):
         model = ProductVariant
         fields = ["id", "label", "size_ml", "price", "new_price", "in_stock", "sku"]
 
-# ✅ promo 
+# ✅ promoo
 class ProductSerializer(serializers.ModelSerializer):
     variants = ProductVariantSerializer(many=True, read_only=True)
 
