@@ -116,7 +116,7 @@ class ProductVariant(models.Model):
     price = models.DecimalField(max_digits=8, decimal_places=2)
     in_stock = models.BooleanField(default=True)
     sku = models.CharField(max_length=64, blank=True, default="", db_index=True)
-     # ✅ NEW: promo price per variant
+     # ✅ promo price per variant
     new_price = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
 
     class Meta:
