@@ -5,14 +5,13 @@ from decimal import Decimal, InvalidOperation
 from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
+from django.conf import settings
 
 from rest_framework import status, permissions
 from rest_framework.views import APIView
 from rest_framework.response import Response
 
 import requests
-from django.conf import settings
-
 
 from .models import (
     Product,
@@ -32,7 +31,6 @@ from .serializers import (
 
 # ---------------- helpers ----------------
 
-
 def _to_dec(v):
     if v in (None, ""):
         return None
@@ -44,10 +42,6 @@ def _to_dec(v):
 
 
 def _to_list(v):
-    """
-    Accepts JSON string '["face","acne"]', CSV 'face,acne', or list.
-    Returns a cleaned list of unique slugs (lowercase).
-    """
     if v in (None, "", []):
         return []
     if isinstance(v, str):
@@ -68,9 +62,7 @@ def _to_list(v):
         return out
     return []
 
-
 # ======================= PRODUCTS =======================
-
 
 class ProductsList(APIView):
     permission_classes = [permissions.AllowAny]
@@ -78,9 +70,6 @@ class ProductsList(APIView):
     def get(self, request):
         qs = Product.objects.all().order_by("-id")
 
-        # ... tes filtres existants (category, brand, search) ...
-
-        # category filter
         slug = (
             request.query_params.get("type")
             or request.query_params.get("category")
@@ -95,11 +84,8 @@ class ProductsList(APIView):
 
         search = request.query_params.get("search")
         if search:
-            qs = qs.filter(
-                Q(name__icontains=search) | Q(description__icontains=search)
-            )
+            qs = qs.filter(Q(name__icontains=search) | Q(description__icontains=search))
 
-        # ⭐ NEW: ?favorite=1 pour ne prendre que les favoris
         fav = request.query_params.get("favorite")
         if fav is not None:
             s = str(fav).strip().lower()
@@ -108,7 +94,6 @@ class ProductsList(APIView):
 
         data = ProductSerializer(qs, many=True, context={"request": request}).data
         return Response(data, status=200)
-
 
 
 class ProductDetailView(APIView):
@@ -126,8 +111,6 @@ class ProductCreateView(APIView):
     @transaction.atomic
     def post(self, request):
         data = request.data
-
-        # ✅ multi categories
         cats = _to_list(data.get("categories"))
         primary = (data.get("category") or (cats[0] if cats else "other")).lower()
 
@@ -141,7 +124,7 @@ class ProductCreateView(APIView):
             "image": request.FILES.get("image"),
             "category": primary,
             "categories": cats,
-            "is_favorite": data.get("is_favorite", False),  # ⭐ AJOUT
+            "is_favorite": data.get("is_favorite", False),
         }
 
         ser = ProductSerializer(data=payload, context={"request": request})
@@ -150,7 +133,6 @@ class ProductCreateView(APIView):
 
         product = ser.save()
 
-        # Optional variants
         raw = data.get("variants")
         if raw:
             try:
@@ -165,12 +147,9 @@ class ProductCreateView(APIView):
                         ProductVariant(
                             product=product,
                             label=label,
-                            size_ml=(
-                                item.get("size_ml")
-                                if item.get("size_ml") not in ("", None)
-                                else None
-                            ),
+                            size_ml=(item.get("size_ml") if item.get("size_ml") not in ("", None) else None),
                             price=price,
+                            new_price=_to_dec(item.get("new_price")),  # ✅ allow saving variant promo
                             in_stock=bool(item.get("in_stock", True)),
                             sku=(item.get("sku") or "").strip(),
                         )
@@ -195,7 +174,6 @@ class ProductEditView(APIView):
         new_base = _to_dec(data.get("price"))
         new_promo = _to_dec(data.get("new_price"))
 
-        # ✅ multi categories (keep old if none sent)
         cats = _to_list(data.get("categories"))
         if cats:
             primary = (data.get("category") or cats[0]).lower()
@@ -213,19 +191,14 @@ class ProductEditView(APIView):
             "stock": data.get("stock", product.stock),
             "category": primary,
             "categories": categories_value,
-            "is_favorite": data.get("is_favorite", product.is_favorite),  # ⭐ AJOUT
+            "is_favorite": data.get("is_favorite", product.is_favorite),
         }
 
         image_file = request.FILES.get("image")
         if image_file is not None:
             payload["image"] = image_file
 
-        ser = ProductSerializer(
-            instance=product,
-            data=payload,
-            partial=True,
-            context={"request": request},
-        )
+        ser = ProductSerializer(instance=product, data=payload, partial=True, context={"request": request})
         if not ser.is_valid():
             return Response({"detail": ser.errors}, status=400)
 
@@ -246,12 +219,9 @@ class ProductEditView(APIView):
                         ProductVariant(
                             product=product,
                             label=label,
-                            size_ml=(
-                                item.get("size_ml")
-                                if item.get("size_ml") not in ("", None)
-                                else None
-                            ),
+                            size_ml=(item.get("size_ml") if item.get("size_ml") not in ("", None) else None),
                             price=price,
+                            new_price=_to_dec(item.get("new_price")),  # ✅ save promo per variant
                             in_stock=bool(item.get("in_stock", True)),
                             sku=(item.get("sku") or "").strip(),
                         )
@@ -275,7 +245,6 @@ class ProductDeleteView(APIView):
 
 
 # ======================= WISHLIST / SHIPPING / BRANDS =======================
-
 
 class WishlistListCreateView(APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -379,46 +348,33 @@ class BrandsListView(APIView):
     permission_classes = [permissions.AllowAny]
 
     def get(self, request):
-        brands = (
-            Product.objects.exclude(brand="")
-            .values_list("brand", flat=True)
-            .distinct()
-        )
+        brands = Product.objects.exclude(brand="").values_list("brand", flat=True).distinct()
         sorted_brands = sorted(brands, key=lambda s: s.casefold())
         return Response(sorted_brands, status=200)
 
 
 # ======================= ORDERS =======================
 
-
 class OrdersCreateView(APIView):
-    # allow guest checkout
     permission_classes = [permissions.AllowAny]
 
     def post(self, request):
-        serializer = OrderCreateSerializer(
-            data=request.data, context={"request": request}
-        )
+        serializer = OrderCreateSerializer(data=request.data, context={"request": request})
         if not serializer.is_valid():
             return Response({"detail": serializer.errors}, status=400)
 
         try:
             order = serializer.save()
         except Product.DoesNotExist:
-            return Response(
-                {"detail": "Produit introuvable dans la commande."}, status=400
-            )
+            return Response({"detail": "Produit introuvable dans la commande."}, status=400)
         except ProductVariant.DoesNotExist:
-            return Response(
-                {"detail": "Variante de produit introuvable dans la commande."},
-                status=400,
-            )
+            return Response({"detail": "Variante de produit introuvable dans la commande."}, status=400)
 
-        # ✅ NEW: send to Google Sheet (non-blocking)
+        # ✅ send to sheet (non-blocking)
         send_order_to_google_sheet(order)
 
+        # ✅ returns id + public_token
         return Response(OrderDetailSerializer(order).data, status=201)
-
 
 
 class MyOrdersListView(APIView):
@@ -430,27 +386,17 @@ class MyOrdersListView(APIView):
         return Response(data, status=200)
 
 
-
-from django.shortcuts import get_object_or_404
-
-from .models import Order
-from .serializers import OrderDetailSerializer
-
-
 class PublicOrderDetailView(APIView):
     """
-    Public guest order lookup:
+    ✅ Guest can fetch order with token:
     GET /api/orders/public/<id>/<token>/
     """
     permission_classes = [permissions.AllowAny]
 
     def get(self, request, pk, token):
         order = get_object_or_404(Order, pk=pk)
-
-        # token must match
-        if str(order.public_token) != str(token):
+        if str(order.public_token or "") != str(token or ""):
             return Response({"detail": "Invalid token."}, status=403)
-
         return Response(OrderDetailSerializer(order).data, status=200)
 
 
@@ -476,9 +422,7 @@ class OrderStatusAdminView(APIView):
         status_new = request.data.get("status")
         valid = [c[0] for c in Order.Status.choices]
         if status_new not in valid:
-            return Response(
-                {"detail": f"Invalid status. Allowed: {valid}"}, status=400
-            )
+            return Response({"detail": f"Invalid status. Allowed: {valid}"}, status=400)
         order.status = status_new
         order.save()
         return Response(OrderDetailSerializer(order).data, status=200)
@@ -508,16 +452,10 @@ class AdminOrderDetailView(APIView):
         order.delete()
         return Response(status=204)
 
+
 # -------- Google Sheets integration ---------
 
 def send_order_to_google_sheet(order):
-    """
-    Send basic order info to a Google Apps Script / webhook
-    that writes into Google Sheets.
-
-    GOOGLE_SHEET_WEBHOOK_URL must be defined in settings.py
-    (or .env) – otherwise this does nothing.
-    """
     url = getattr(settings, "GOOGLE_SHEET_WEBHOOK_URL", "")
     if not url:
         return
@@ -537,8 +475,6 @@ def send_order_to_google_sheet(order):
     }
 
     try:
-        # You can also use data=payload if your script expects form-data
         requests.post(url, json=payload, timeout=5)
     except Exception:
-        # We do not break checkout if Google is down
         pass

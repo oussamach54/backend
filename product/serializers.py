@@ -111,7 +111,7 @@ class OrderCreateSerializer(serializers.ModelSerializer):
 
     def _unit_price_for(self, product, variant):
         if variant:
-            # ✅ variant-level promo first
+            # ✅ variant promo first
             try:
                 if (
                     variant.new_price is not None
@@ -231,14 +231,14 @@ class OrderDetailSerializer(serializers.ModelSerializer):
     items = OrderItemReadSerializer(many=True)
     created_at_local = serializers.SerializerMethodField()
 
-    # ✅ NEW: expose public_token so thank-you can fetch order for guests
+    # ✅ expose token
     public_token = serializers.ReadOnlyField()
 
     class Meta:
         model = Order
         fields = [
             "id",
-            "public_token",  # ✅ NEW
+            "public_token",
             "status",
             "payment_method",
             "full_name",

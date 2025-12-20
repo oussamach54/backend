@@ -2,12 +2,11 @@
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from django.db import models
 from django.conf import settings
-import secrets  # ✅ NEW
+import secrets
 
 
 class Product(models.Model):
     class Category(models.TextChoices):
-        # existing
         FACE = "face", "Visage"
         LIPS = "lips", "Lèvres"
         EYES = "eyes", "Yeux"
@@ -15,7 +14,6 @@ class Product(models.Model):
         HAIR = "hair", "Cheveux"
         OTHER = "other", "Other"
 
-        # NEW additions
         BODY = "body", "Corps"
         PACKS = "packs", "Packs"
         ACNE = "acne", "Acné"
@@ -27,30 +25,22 @@ class Product(models.Model):
     name = models.CharField(max_length=200)
     description = models.TextField(blank=True)
 
-    # Base price (original)
     price = models.DecimalField(max_digits=8, decimal_places=2)
-
-    # Promo price (optional). If set and < price ⇒ discount active
     new_price = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
 
     stock = models.BooleanField(default=False)
     image = models.ImageField(upload_to="products/", null=True, blank=True)
 
-    # Primary category (used for filters/tabs)
     category = models.CharField(
-        max_length=30,  # keep >= longest slug ("hyper_pigmentation" length 19; 30 is safe)
+        max_length=30,
         choices=Category.choices,
         default=Category.OTHER,
         db_index=True,
     )
 
-    # ✅ multi-category tags (list of slugs)
-    # e.g. ["face", "acne", "brightening"]
     categories = models.JSONField(default=list, blank=True)
-
     brand = models.CharField(max_length=120, blank=True, default="", db_index=True)
 
-    # ⭐ NEW: favoris admin
     is_favorite = models.BooleanField(default=False, db_index=True)
 
     @property
@@ -69,7 +59,6 @@ class Product(models.Model):
                 return 0
         return 0
 
-    # ----- variant-promo helpers (promo applies ONLY to biggest variant) -----
     def _biggest_variant(self):
         vs = list(self.variants.all())
         if not vs:
@@ -112,12 +101,13 @@ class Product(models.Model):
 
 class ProductVariant(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="variants")
-    label = models.CharField(max_length=80)  # e.g. "500 ml"
+    label = models.CharField(max_length=80)
     size_ml = models.PositiveIntegerField(null=True, blank=True)
     price = models.DecimalField(max_digits=8, decimal_places=2)
     in_stock = models.BooleanField(default=True)
     sku = models.CharField(max_length=64, blank=True, default="", db_index=True)
-     # ✅ promo price per variantt
+
+    # ✅ promo price per variant
     new_price = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
 
     class Meta:
@@ -151,7 +141,7 @@ class WishlistItem(models.Model):
 
 class ShippingRate(models.Model):
     city = models.CharField(max_length=120, unique=True, db_index=True)
-    price = models.DecimalField(max_digits=6, decimal_places=2)  # DH
+    price = models.DecimalField(max_digits=6, decimal_places=2)
     active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -160,7 +150,6 @@ class ShippingRate(models.Model):
 
     def __str__(self):
         return f"{self.city} — {self.price} DH"
-
 
 
 class Order(models.Model):
@@ -183,16 +172,16 @@ class Order(models.Model):
         related_name="orders",
     )
 
-    # ✅ NEW: public token so guests can view their order safely
+    # ✅ FIX: allow NULL to avoid duplicate "" on existing rows
     public_token = models.CharField(
         max_length=64,
         unique=True,
+        null=True,           # ✅ important
         blank=True,
         editable=False,
         db_index=True,
     )
 
-    # snapshot of who/where to ship
     full_name = models.CharField(max_length=120)
     email = models.EmailField(blank=True, default="")
     phone = models.CharField(max_length=32)
@@ -211,22 +200,9 @@ class Order(models.Model):
         default=Status.PENDING,
     )
 
-    # money snapshots
-    shipping_price = models.DecimalField(
-        max_digits=8,
-        decimal_places=2,
-        default=Decimal("0.00"),
-    )
-    items_total = models.DecimalField(
-        max_digits=10,
-        decimal_places=2,
-        default=Decimal("0.00"),
-    )
-    grand_total = models.DecimalField(
-        max_digits=10,
-        decimal_places=2,
-        default=Decimal("0.00"),
-    )
+    shipping_price = models.DecimalField(max_digits=8, decimal_places=2, default=Decimal("0.00"))
+    items_total = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
+    grand_total = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
 
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -234,10 +210,13 @@ class Order(models.Model):
         ordering = ["-created_at"]
 
     def save(self, *args, **kwargs):
-        # ✅ ensure token exists
+        # ✅ ensure token exists and is unique
         if not self.public_token:
-            # token_hex(16) => 32 chars, safe enough
-            self.public_token = secrets.token_hex(16)
+            for _ in range(5):
+                tok = secrets.token_hex(16)  # 32 chars
+                if not Order.objects.filter(public_token=tok).exists():
+                    self.public_token = tok
+                    break
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -246,20 +225,9 @@ class Order(models.Model):
 
 class OrderItem(models.Model):
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name="items")
-    product = models.ForeignKey(
-        "product.Product",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-    )
-    variant = models.ForeignKey(
-        "product.ProductVariant",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-    )
+    product = models.ForeignKey("product.Product", on_delete=models.SET_NULL, null=True, blank=True)
+    variant = models.ForeignKey("product.ProductVariant", on_delete=models.SET_NULL, null=True, blank=True)
 
-    # snapshots for resilience
     name = models.CharField(max_length=200)
     variant_label = models.CharField(max_length=80, blank=True, default="")
     unit_price = models.DecimalField(max_digits=10, decimal_places=2)
