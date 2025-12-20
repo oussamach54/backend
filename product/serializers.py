@@ -1,6 +1,5 @@
 # backend/product/serializers.py
 from decimal import Decimal, ROUND_HALF_UP
-from django.utils import timezone
 import pytz
 
 from rest_framework import serializers
@@ -20,7 +19,7 @@ class ProductVariantSerializer(serializers.ModelSerializer):
         model = ProductVariant
         fields = ["id", "label", "size_ml", "price", "new_price", "in_stock", "sku"]
 
-# ✅ promoo
+
 class ProductSerializer(serializers.ModelSerializer):
     variants = ProductVariantSerializer(many=True, read_only=True)
 
@@ -42,17 +41,14 @@ class ProductSerializer(serializers.ModelSerializer):
             "image",
             "image_url",
             "brand",
-            # ✅ single + multi categories
             "category",
             "categories",
             "is_favorite",
-            # promo/computed
             "has_discount",
             "discount_percent",
             "promo_variant_id",
             "promo_variant_old_price",
             "promo_variant_new_price",
-            # nested
             "variants",
         ]
 
@@ -114,15 +110,8 @@ class OrderCreateSerializer(serializers.ModelSerializer):
         return value
 
     def _unit_price_for(self, product, variant):
-        """
-        ✅ PRIX FINAL:
-        1) si variante => prendre variant.new_price si valide
-        2) sinon fallback sur promo "biggest variant" (ton ancien système)
-        3) sinon variant.price
-        4) si pas de variante => promo produit (new_price) sinon price
-        """
         if variant:
-            # ✅ promo par variante (priorité)
+            # ✅ variant-level promo first
             try:
                 if (
                     variant.new_price is not None
@@ -133,7 +122,7 @@ class OrderCreateSerializer(serializers.ModelSerializer):
             except Exception:
                 pass
 
-            # (garde ton ancienne logique promo "biggest variant")
+            # fallback promo variant system
             if (
                 product.has_discount
                 and product.promo_variant_id
@@ -143,21 +132,13 @@ class OrderCreateSerializer(serializers.ModelSerializer):
 
             return variant.price
 
-        # pas de variante => promo produit
         return product.new_price if product.has_discount else product.price
 
     def create(self, validated):
-        """
-        Crée la commande, en vérifiant d'abord que
-        - le produit existe
-        - la variante existe (si fournie)
-        - PRODUIT et VARIANTE sont en stock
-        """
         request = self.context.get("request")
         user = request.user if request and getattr(request, "user", None) else None
         items = validated.pop("items", [])
 
-        # ----- shipping -----
         raw_shipping = validated.pop("shipping_price", None)
         if raw_shipping not in (None, ""):
             try:
@@ -165,13 +146,11 @@ class OrderCreateSerializer(serializers.ModelSerializer):
             except Exception:
                 shipping_price = Decimal("0.00")
         else:
-            from .models import ShippingRate  # local import to avoid cycles
-
+            from .models import ShippingRate
             city = validated.get("city", "")
             rate = ShippingRate.objects.filter(active=True, city__iexact=city).first()
             shipping_price = rate.price if rate else Decimal("0.00")
 
-        # ----- vérifier les stocks AVANT de créer l'Order -----
         validated_items = []
         for item in items:
             pid = item["product_id"]
@@ -181,9 +160,7 @@ class OrderCreateSerializer(serializers.ModelSerializer):
             try:
                 product = Product.objects.get(id=pid)
             except Product.DoesNotExist:
-                raise serializers.ValidationError(
-                    {"detail": f"Produit avec id={pid} introuvable."}
-                )
+                raise serializers.ValidationError({"detail": f"Produit avec id={pid} introuvable."})
 
             variant = None
             if vid is not None:
@@ -191,32 +168,18 @@ class OrderCreateSerializer(serializers.ModelSerializer):
                     variant = ProductVariant.objects.get(id=vid, product=product)
                 except ProductVariant.DoesNotExist:
                     raise serializers.ValidationError(
-                        {
-                            "detail": (
-                                f"Variante sélectionnée introuvable pour le produit "
-                                f"« {product.name} »."
-                            )
-                        }
+                        {"detail": f"Variante sélectionnée introuvable pour le produit « {product.name} »."}
                     )
 
-            # 🔒 Vérification stock produit / variante
             if not product.stock:
-                raise serializers.ValidationError(
-                    {"detail": f"Le produit « {product.name} » est en rupture de stock."}
-                )
+                raise serializers.ValidationError({"detail": f"Le produit « {product.name} » est en rupture de stock."})
             if variant is not None and not variant.in_stock:
                 raise serializers.ValidationError(
-                    {
-                        "detail": (
-                            f"La variante « {variant.label} » du produit "
-                            f"« {product.name} » est en rupture de stock."
-                        )
-                    }
+                    {"detail": f"La variante « {variant.label} » du produit « {product.name} » est en rupture de stock."}
                 )
 
             validated_items.append((product, variant, qty))
 
-        # ----- création Order + OrderItem(s) -----
         order = Order.objects.create(
             user=user if user and user.is_authenticated else None,
             shipping_price=shipping_price,
@@ -229,9 +192,7 @@ class OrderCreateSerializer(serializers.ModelSerializer):
 
         for product, variant, qty in validated_items:
             unit_price = Decimal(self._unit_price_for(product, variant))
-            line_total = (unit_price * qty).quantize(
-                Decimal("0.01"), rounding=ROUND_HALF_UP
-            )
+            line_total = (unit_price * qty).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
             OrderItem.objects.create(
                 order=order,
@@ -246,9 +207,7 @@ class OrderCreateSerializer(serializers.ModelSerializer):
             items_total += line_total
 
         order.items_total = items_total.quantize(Decimal("0.01"))
-        order.grand_total = (
-            order.items_total + Decimal(order.shipping_price)
-        ).quantize(Decimal("0.01"))
+        order.grand_total = (order.items_total + Decimal(order.shipping_price)).quantize(Decimal("0.01"))
         order.save()
         return order
 
@@ -272,10 +231,14 @@ class OrderDetailSerializer(serializers.ModelSerializer):
     items = OrderItemReadSerializer(many=True)
     created_at_local = serializers.SerializerMethodField()
 
+    # ✅ NEW: expose public_token so thank-you can fetch order for guests
+    public_token = serializers.ReadOnlyField()
+
     class Meta:
         model = Order
         fields = [
             "id",
+            "public_token",  # ✅ NEW
             "status",
             "payment_method",
             "full_name",
@@ -293,8 +256,6 @@ class OrderDetailSerializer(serializers.ModelSerializer):
         ]
 
     def get_created_at_local(self, obj):
-        # Convert UTC → Casablanca time
         tz = pytz.timezone("Africa/Casablanca")
-        utc = obj.created_at
-        local_dt = utc.astimezone(tz)
+        local_dt = obj.created_at.astimezone(tz)
         return local_dt.strftime("%Y-%m-%d %H:%M:%S")

@@ -430,6 +430,30 @@ class MyOrdersListView(APIView):
         return Response(data, status=200)
 
 
+
+from django.shortcuts import get_object_or_404
+
+from .models import Order
+from .serializers import OrderDetailSerializer
+
+
+class PublicOrderDetailView(APIView):
+    """
+    Public guest order lookup:
+    GET /api/orders/public/<id>/<token>/
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request, pk, token):
+        order = get_object_or_404(Order, pk=pk)
+
+        # token must match
+        if str(order.public_token) != str(token):
+            return Response({"detail": "Invalid token."}, status=403)
+
+        return Response(OrderDetailSerializer(order).data, status=200)
+
+
 class OrderDetailView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 

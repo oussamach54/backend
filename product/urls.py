@@ -37,4 +37,5 @@ urlpatterns = [
     path("orders/<int:pk>/status/", OrderStatusAdminView.as_view(), name="orders-status"),  # PATCH status (admin)
     path("orders/admin/", AdminOrdersListView.as_view(), name="orders-admin-list"),          # GET all (admin)
     path("orders/admin/<int:pk>/", AdminOrderDetailView.as_view(), name="orders-admin-detail"),
+    path("orders/public/<int:pk>/<str:token>/", views.PublicOrderDetailView.as_view()),
 ]
