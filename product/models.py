@@ -2,6 +2,7 @@
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from django.db import models
 from django.conf import settings
+import secrets  # ✅ NEW
 
 
 class Product(models.Model):
@@ -161,6 +162,7 @@ class ShippingRate(models.Model):
         return f"{self.city} — {self.price} DH"
 
 
+
 class Order(models.Model):
     class Status(models.TextChoices):
         PENDING = "pending", "En attente"
@@ -179,6 +181,15 @@ class Order(models.Model):
         null=True,
         blank=True,
         related_name="orders",
+    )
+
+    # ✅ NEW: public token so guests can view their order safely
+    public_token = models.CharField(
+        max_length=64,
+        unique=True,
+        blank=True,
+        editable=False,
+        db_index=True,
     )
 
     # snapshot of who/where to ship
@@ -222,6 +233,13 @@ class Order(models.Model):
     class Meta:
         ordering = ["-created_at"]
 
+    def save(self, *args, **kwargs):
+        # ✅ ensure token exists
+        if not self.public_token:
+            # token_hex(16) => 32 chars, safe enough
+            self.public_token = secrets.token_hex(16)
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return f"Order #{self.id} — {self.full_name} — {self.status}"
 
@@ -249,5 +267,4 @@ class OrderItem(models.Model):
     line_total = models.DecimalField(max_digits=10, decimal_places=2)
 
     def __str__(self):
-        # this is my code
         return f"{self.name} x{self.quantity} ({self.unit_price})"
