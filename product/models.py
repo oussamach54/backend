@@ -4,7 +4,6 @@ from django.db import models
 from django.conf import settings
 import secrets
 
-
 class Product(models.Model):
     class Category(models.TextChoices):
         MAKEUP = "makeup", "Maquillage"
