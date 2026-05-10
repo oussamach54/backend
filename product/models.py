@@ -7,6 +7,7 @@ import secrets
 
 class Product(models.Model):
     class Category(models.TextChoices):
+        MAKEUP = "makeup", "Maquillage"
         FACE = "face", "Visage"
         LIPS = "lips", "Lèvres"
         EYES = "eyes", "Yeux"
