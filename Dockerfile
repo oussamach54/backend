@@ -21,7 +21,7 @@ COPY . .
 ENV DJANGO_SETTINGS_MODULE=my_project.settings
 ENV STATIC_ROOT=/app/staticfiles
 ENV MEDIA_ROOT=/app/media
-
+EXPOSE 8000
 CMD sh -c "python manage.py migrate --noinput && \
            python manage.py collectstatic --noinput && \
            gunicorn my_project.wsgi:application --bind 0.0.0.0:8000"
