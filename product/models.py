@@ -42,6 +42,7 @@ class Product(models.Model):
     brand = models.CharField(max_length=120, blank=True, default="", db_index=True)
 
     is_favorite = models.BooleanField(default=False, db_index=True)
+    favorite_updated_at = models.DateTimeField(null=True, blank=True, db_index=True)
 
     @property
     def has_discount(self):

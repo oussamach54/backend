@@ -6,6 +6,7 @@ from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.conf import settings
+from django.utils import timezone
 
 from rest_framework import status, permissions
 from rest_framework.views import APIView
@@ -90,7 +91,7 @@ class ProductsList(APIView):
         if fav is not None:
             s = str(fav).strip().lower()
             if s in ("1", "true", "yes", "on"):
-                qs = qs.filter(is_favorite=True)
+                qs = qs.filter(is_favorite=True).order_by("-favorite_updated_at", "-id")
 
         data = ProductSerializer(qs, many=True, context={"request": request}).data
         return Response(data, status=200)
@@ -114,6 +115,8 @@ class ProductCreateView(APIView):
         cats = _to_list(data.get("categories"))
         primary = (data.get("category") or (cats[0] if cats else "other")).lower()
 
+        is_favorite = str(data.get("is_favorite", False)).lower() in ("1", "true", "yes", "on")
+
         payload = {
             "name": data.get("name"),
             "brand": data.get("brand", ""),
@@ -124,7 +127,7 @@ class ProductCreateView(APIView):
             "image": request.FILES.get("image"),
             "category": primary,
             "categories": cats,
-            "is_favorite": data.get("is_favorite", False),
+            "is_favorite": is_favorite,
         }
 
         ser = ProductSerializer(data=payload, context={"request": request})
@@ -132,6 +135,10 @@ class ProductCreateView(APIView):
             return Response({"detail": ser.errors}, status=400)
 
         product = ser.save()
+
+        if is_favorite:
+            product.favorite_updated_at = timezone.now()
+            product.save(update_fields=["favorite_updated_at"])
 
         raw = data.get("variants")
         if raw:
@@ -182,6 +189,8 @@ class ProductEditView(APIView):
             primary = (data.get("category") or product.category or "other").lower()
             categories_value = product.categories
 
+        is_favorite = str(data.get("is_favorite", product.is_favorite)).lower() in ("1", "true", "yes", "on")
+
         payload = {
             "name": data.get("name", product.name),
             "brand": data.get("brand", product.brand),
@@ -191,7 +200,7 @@ class ProductEditView(APIView):
             "stock": data.get("stock", product.stock),
             "category": primary,
             "categories": categories_value,
-            "is_favorite": data.get("is_favorite", product.is_favorite),
+            "is_favorite": is_favorite,
         }
 
         image_file = request.FILES.get("image")
@@ -203,6 +212,10 @@ class ProductEditView(APIView):
             return Response({"detail": ser.errors}, status=400)
 
         product = ser.save()
+
+        if is_favorite:
+            product.favorite_updated_at = timezone.now()
+            product.save(update_fields=["favorite_updated_at"])
 
         if "variants" in data:
             ProductVariant.objects.filter(product=product).delete()
