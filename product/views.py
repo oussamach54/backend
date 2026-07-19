@@ -139,6 +139,9 @@ class ProductCreateView(APIView):
         if is_favorite:
             product.favorite_updated_at = timezone.now()
             product.save(update_fields=["favorite_updated_at"])
+        else:
+            product.favorite_updated_at = None
+            product.save(update_fields=["favorite_updated_at"])
 
         raw = data.get("variants")
         if raw:
@@ -215,6 +218,9 @@ class ProductEditView(APIView):
 
         if is_favorite:
             product.favorite_updated_at = timezone.now()
+            product.save(update_fields=["favorite_updated_at"])
+        else:
+            product.favorite_updated_at = None
             product.save(update_fields=["favorite_updated_at"])
 
         if "variants" in data:

@@ -9,6 +9,7 @@ from rest_framework.test import APIRequestFactory
 from .views import ProductCreateView, ProductDeleteView, ProductEditView
 from django.contrib.auth.models import User
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.utils import timezone
 
 
 class ProductApiTest(TestCase):
@@ -201,4 +202,31 @@ class ProductApisAuthTest(ProductApisSetUp):
         force_authenticate(request, user=user)
         response = view(request, 1)
         self.assertEqual(response.status_code, 403) # Forbidden
+
+    def test_favorite_timestamp_is_cleared_when_unfavorited(self):
+        factory = APIRequestFactory()
+        user = User.objects.get(username='admin')
+        view = ProductEditView.as_view()
+
+        self.product.is_favorite = True
+        self.product.favorite_updated_at = timezone.now()
+        self.product.save(update_fields=["is_favorite", "favorite_updated_at"])
+
+        request = factory.put(
+            '/api/product-update/1/',
+            {
+                "name": self.product.name,
+                "description": self.product.description,
+                "price": "400.99",
+                "stock": "True",
+                "is_favorite": "false",
+            },
+            format='json'
+        )
+        force_authenticate(request, user=user)
+        response = view(request, self.product.id)
+
+        self.assertEqual(response.status_code, 200)
+        self.product.refresh_from_db()
+        self.assertIsNone(self.product.favorite_updated_at)
 
