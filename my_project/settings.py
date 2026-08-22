@@ -91,15 +91,20 @@ WSGI_APPLICATION = "my_project.wsgi.application"
 # -----------------------------------------------------------------------------
 # DATABASE
 # -----------------------------------------------------------------------------
-DATABASES = {
-    "default": dj_database_url.config(
-        default=os.environ.get(
-            "DATABASE_URL",
-            "postgres://postgres:hh@localhost:5432/ecommerce_db"  # local fallback
-        ),
-        conn_max_age=600,
-    )
-}
+_database_url = os.environ.get("DATABASE_URL")
+if _database_url:
+    DATABASES = {
+        "default": dj_database_url.config(default=_database_url, conn_max_age=600)
+    }
+else:
+    # Local development fallback to SQLite so the backend can run without
+    # requiring a running Postgres service. In production set DATABASE_URL.
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
+    }
 
 # -----------------------------------------------------------------------------
 # AUTH / JWT / DRF

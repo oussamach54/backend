@@ -69,7 +69,7 @@ class ProductsList(APIView):
     permission_classes = [permissions.AllowAny]
 
     def get(self, request):
-        qs = Product.objects.all().order_by("-id")
+        qs = Product.objects.prefetch_related("variants").order_by("-id")
 
         slug = (
             request.query_params.get("type")
